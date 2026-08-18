@@ -3,7 +3,6 @@ pip install opencv-python
 pip install matplotlib
 pip install scipy
 pip install pytesseract
-pip install flask
 
 install Tesseract : https://github.com/UB-Mannheim/tesseract/wiki
 c:\Program Files\Tesseract-OCR\

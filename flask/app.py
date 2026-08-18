@@ -4,7 +4,6 @@ from flask import Flask, render_template, request, jsonify
 import cv2
 import numpy as np
 import pytesseract
-from werkzeug.utils import secure_filename
 from PIL import Image
 
 app = Flask(__name__)
@@ -157,7 +156,7 @@ def upload_file():
         return jsonify({'error': 'No selected file'})
     
     if file and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
+        filename = file.filename
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         original_image_path = filepath

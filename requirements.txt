@@ -1,0 +1,10 @@
+fastapi==0.115.12
+python-multipart==0.0.20
+uvicorn[standard]==0.34.2
+numpy==1.26.4
+Pillow==10.4.0
+
+matplotlib==3.9.2
+pytesseract==0.3.13
+scipy==1.13.1
+opencv-python-headless==4.10.0.84
