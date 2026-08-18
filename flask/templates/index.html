@@ -1,0 +1,266 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>OCR Text Extraction</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .image-container {
+            margin: 20px 0;
+            text-align: center;
+        }
+        img {
+            max-width: 100%;
+            max-height: 400px;
+        }
+        .text-output {
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+            min-height: 100px;
+            white-space: pre-line;
+            font-family: monospace;
+            line-height: 1.5;
+            background-color: #f8f8f8;
+        }
+        #imagePreview {
+            margin: 20px 0;
+            text-align: center;
+        }
+        #previewImage {
+            max-width: 100%;
+            max-height: 400px;
+            display: none;
+            margin: 10px auto;
+        }
+        .preview-text {
+            color: #666;
+            font-style: italic;
+        }
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f5f5f5;
+            border-radius: 5px;
+        }
+        .result-container {
+            display: none;
+            margin-top: 20px;
+        }
+        .button-group {
+            margin-top: 10px;
+        }
+        button {
+            margin: 5px;
+            padding: 8px 15px;
+            cursor: pointer;
+        }
+        button:disabled {
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+        #extractButton {
+            display: none;
+        }
+        #textResult {
+            display: none;
+        }
+        .processing-options, .extraction-options {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+        }
+        .radio-group {
+            margin: 10px 0;
+        }
+        label {
+            margin-right: 15px;
+        }
+        select {
+            margin: 5px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <h1>OCR Text Extraction</h1>
+    
+    <div class="controls">
+        <form id="uploadForm">
+            <input type="file" name="file" accept=".png,.jpg,.jpeg" required id="imageInput">
+        </form>
+        
+        <div class="processing-options">
+            <h3>Processing Options</h3>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="processSource" value="original" checked> 
+                    Process Original Image
+                </label>
+                <label>
+                    <input type="radio" name="processSource" value="last"> 
+                    Process Last Result
+                </label>
+            </div>
+            
+            <select name="process_method" id="processMethod">
+                <option value="skew">Skew</option>
+                <option value="gaussian">Gaussian Blur</option>
+                <option value="thresholding">Threshold</option>
+                <option value="median">Median Blur</option>
+                <option value="bilateral">Bilateral Filter</option>
+            </select>
+            
+            <button id="processButton" disabled>Process Image</button>
+        </div>
+
+        <div class="extraction-options">
+            <h3>Extraction Options</h3>
+            <select name="lang" id="langSelect">
+                <option value="eng+vie">English + Vietnamese</option>
+                <option value="eng">English Only</option>
+                <option value="vie">Vietnamese Only</option>
+            </select>
+            
+            <button id="extractButton" disabled>Extract Text</button>
+        </div>
+    </div>
+
+    <div id="imagePreview">
+        <h3>Original Image</h3>
+        <p class="preview-text">No image selected</p>
+        <img id="previewImage" alt="Preview">
+    </div>
+
+    <div class="result-container" id="resultContainer">
+        <div class="image-container">
+            <h3>Processed Image</h3>
+            <img id="processedImage" alt="Processed Image">
+        </div>
+    </div>
+
+    <div id="textResult">
+        <h3>Extracted Text:</h3>
+        <div class="text-output" id="extractedText"></div>
+    </div>
+
+    <script>
+        const imageInput = document.getElementById('imageInput');
+        const processButton = document.getElementById('processButton');
+        const extractButton = document.getElementById('extractButton');
+        const processMethod = document.getElementById('processMethod');
+        const langSelect = document.getElementById('langSelect');
+
+        imageInput.addEventListener('change', async function(e) {
+            const file = e.target.files[0];
+            if (!file) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', file);
+
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+
+                // Show preview
+                const previewImage = document.getElementById('previewImage');
+                const previewText = document.querySelector('.preview-text');
+                
+                previewImage.style.display = 'block';
+                previewImage.src = data.original;
+                previewText.style.display = 'none';
+                
+                // Reset other elements
+                document.getElementById('resultContainer').style.display = 'none';
+                document.getElementById('textResult').style.display = 'none';
+                
+                // Enable buttons
+                processButton.disabled = false;
+                extractButton.disabled = false;
+                extractButton.style.display = 'inline-block';
+                
+                // Reset radio to original
+                document.querySelector('input[value="original"]').checked = true;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while uploading the image');
+            }
+        });
+
+        processButton.addEventListener('click', async () => {
+            const formData = new FormData();
+            const useOriginal = document.querySelector('input[name="processSource"]:checked').value === 'original';
+            
+            formData.append('process_method', processMethod.value);
+            formData.append('use_original', useOriginal);
+            try {
+                const response = await fetch('/process', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                document.getElementById('resultContainer').style.display = 'block';
+                document.getElementById('processedImage').src = data.processed + '?t=' + new Date().getTime();
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while processing the image');
+            }
+        });
+
+        extractButton.addEventListener('click', async () => {
+            const formData = new FormData();
+            const useOriginal = document.querySelector('input[name="processSource"]:checked').value === 'original';
+            formData.append('use_original', useOriginal);
+            formData.append('lang', langSelect.value);
+            
+            try {
+                const response = await fetch('/extract', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    alert(data.error);
+                    return;
+                }
+                
+                document.getElementById('textResult').style.display = 'block';
+                document.getElementById('extractedText').textContent = data.text;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while extracting text');
+            }
+        });
+    </script>
+</body>
+</html>
