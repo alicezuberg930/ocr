@@ -9,7 +9,13 @@ pytesseract is only a Python wrapper around the actual Tesseract OCR executable,
 ```sudo pacman -S tesseract```
 
 + On windows
-```choco install tesseract -y```
+1. Run file tesseract-ocr-w64-setup-v4.1.0.20190314.exe
+2. Search for Environment Variables
+3. Open Edit the system environment variables
+4. Click Environment Variables
+5. Under User variables or System variables, select Path
+6. Click New
+7. Add C:\Program Files\Tesseract-OCR
 
 - Install the language packs
 

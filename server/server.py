@@ -9,9 +9,9 @@ load_server_env()
 from routes import register_routes
 from utils import CORS_ALLOWED_ORIGINS
 
-app = FastAPI(title='OCR Service', version='1.0.0')
+server = FastAPI(title='OCR Service', version='1.0.0')
 
-app.add_middleware(
+server.add_middleware(
     CORSMiddleware,
     allow_origins=list(CORS_ALLOWED_ORIGINS),
     allow_credentials=True,
@@ -19,10 +19,10 @@ app.add_middleware(
     allow_headers=['*'],
 )
 
-app.mount(
+server.mount(
     "/static",
     StaticFiles(directory="static"),
     name="static",
 )
 
-register_routes(app)
+register_routes(server)

@@ -114,7 +114,7 @@ async def interceptor(request: Request, call_next):
     try:
         response = await call_next(request)
     except Exception:
-        logger.exception('[REMOVE-BG] Unhandled error in /remove-background')
+        logger.exception('[OCR-ENGINE] Unhandled error in /remove-background')
         response = JSONResponse(status_code=500, content={'detail': 'Internal server error'})
 
     if response.headers.get('content-type', '').lower().startswith('image/'):

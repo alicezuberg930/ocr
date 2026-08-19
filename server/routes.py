@@ -116,38 +116,32 @@ def skew(img: np.ndarray) -> np.ndarray:
     return rotated_image
 
 
-def process_image(
-    image_path: str,
-    method: str = "gaussian",
-) -> str:
+def process_image(image_path: str) -> str:
     img = cv2.imread(image_path)
-
     if img is None:
         raise ValueError("Unable to read image")
-    if method == "thresholding":
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        _, processed = cv2.threshold(
-            gray,
-            0,
-            255,
-            cv2.THRESH_BINARY | cv2.THRESH_OTSU,
-        )
-    elif method == "skew":
-        processed = skew(img)
-    elif method == "gaussian":
-        processed = cv2.GaussianBlur(img, (5, 5), 0)
-    elif method == "median":
-        processed = cv2.medianBlur(img, 5)
-    elif method == "bilateral":
-        processed = cv2.bilateralFilter(img, 9, 75, 75)
-    else:
-        processed = img
+
+    # 1. Convert to grayscale
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+    # 2. Correct skew
+    deskewed = skew(gray)
+
+    # 3. Gaussian blur
+    # Reduce small amounts of image noise before thresholding.
+    blurred = cv2.GaussianBlur(deskewed, (5, 5), 0)
+
+    # 4. Otsu thresholding
+    # Convert the image to black and white.
+    _, processed = cv2.threshold(
+        blurred,
+        0,
+        255,
+        cv2.THRESH_BINARY | cv2.THRESH_OTSU,
+    )
 
     filename = os.path.basename(image_path)
 
-    # Keep the original behavior:
-    # original: abc.jpg
-    # processed: processed_abc.jpg
     base_filename = filename.split("_")[-1]
 
     processed_path = os.path.join(
@@ -162,14 +156,12 @@ def process_image(
     return processed_path
 
 
-def get_image(use_original: bool = False) -> str:
+def get_image() -> str:
     global original_image_path
     global processed_image_path
     global current_image_path
 
-    if use_original and original_image_path:
-        return original_image_path
-    if processed_image_path and not use_original:
+    if processed_image_path:
         return processed_image_path
     if original_image_path:
         return original_image_path
@@ -178,9 +170,8 @@ def get_image(use_original: bool = False) -> str:
 
 def extract_text(
     lang: str = "vie",
-    use_original: bool = False,
 ) -> str:
-    input_path = get_image(use_original)
+    input_path = get_image()
     text = pytesseract.image_to_string(Image.open(input_path), lang=lang)
     return text
 
@@ -255,24 +246,14 @@ async def upload(request: Request, file: UploadFile = File(...)):
 
 
 @router.post("/process")
-async def process(
-    process_method: str = Form(default="gaussian"),
-    use_original: str = Form(default="false"),
-):
+async def process():
     global processed_image_path
     global current_image_path
 
-    use_original_bool = use_original.lower() == "true"
-
     try:
-        input_path = get_image(
-            use_original=use_original_bool,
-        )
+        input_path = get_image()
 
-        processed_image_path = process_image(
-            input_path,
-            process_method,
-        )
+        processed_image_path = process_image(input_path)
 
         current_image_path = processed_image_path
 
@@ -296,14 +277,10 @@ async def process(
 @router.post("/extract")
 async def extract(
     lang: str = Form(default="eng+vie"),
-    use_original: str = Form(default="false"),
 ):
-    use_original_bool = use_original.lower() == "true"
-
     try:
         text = extract_text(
             lang=lang,
-            use_original=use_original_bool,
         )
 
     except ValueError as e:
@@ -329,4 +306,4 @@ async def extract(
 
 def register_routes(server: FastAPI):
     server.include_router(router)
-    server.middleware('http')(interceptor)
+    # server.middleware('http')(interceptor)
