@@ -3,6 +3,7 @@ import os
 import secrets
 import threading
 import time
+from pathlib import Path
 from typing import Any, Dict, TypedDict
 from PIL import Image
 
@@ -132,8 +133,11 @@ async def interceptor(request: Request, call_next):
         headers=wrapped_headers,
     )
 
-
-CLEANED_RESULTS_DIR = 'cleaned-results'
+UPLOAD_CHUNK_SIZE = 1024 * 1024
+STATIC_FOLDER = Path(__file__).resolve().parent / "static"
+RESULTS_FOLDER = STATIC_FOLDER / "results"
+MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB
+ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg"}
 CLEANED_IMAGE_FILENAME = 'cleaned.png'
 CORS_ALLOWED_ORIGINS = (
     'http://localhost:5173',
@@ -157,7 +161,7 @@ def is_valid_job_id(job_id: str) -> bool:
 
 
 def job_directory(job_id: str) -> str:
-    return os.path.join(CLEANED_RESULTS_DIR, job_id)
+    return str(RESULTS_FOLDER / job_id)
 
 
 def image_bit_depth(mode: str) -> int:
@@ -188,16 +192,6 @@ def is_original_image_filename(filename: str) -> bool:
 
 def image_media_type(filename: str) -> str:
     return IMAGE_MEDIA_TYPES.get(os.path.splitext(filename)[1].lower(), 'application/octet-stream')
-
-
-def image_response_headers(request: Request) -> dict[str, str]:
-    headers = {'Cache-Control': 'public, max-age=31536000, immutable'}
-    origin = request.headers.get('origin')
-    if origin in CORS_ALLOWED_ORIGINS:
-        headers['Access-Control-Allow-Origin'] = origin
-        headers['Access-Control-Allow-Credentials'] = 'true'
-        headers['Vary'] = 'Origin'
-    return headers
 
 
 def extract_original_filename(record: dict) -> str:

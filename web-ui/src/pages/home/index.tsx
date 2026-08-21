@@ -1,4 +1,4 @@
-import { ChangeEvent, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -19,27 +19,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-type ProcessMethod =
-    | "thresholding"
-    | "skew"
-    | "gaussian"
-    | "median"
-    | "bilateral"
-    | "none";
-
-interface UploadResponse {
-    original: string;
-    error?: string;
-}
-
-interface ProcessResponse {
-    processed: string;
-    error?: string;
-}
-
 interface ExtractResponse {
+    job_id: string;
     text: string;
-    error?: string;
+    original_image: string;
+    processed_image: string;
 }
 
 interface ErrorResponse {
@@ -102,7 +86,12 @@ async function getResponseData<T>(response: Response): Promise<T> {
 }
 
 export function HomePage() {
+    const fileInputRef = useRef<HTMLInputElement>(null);
     const [file, setFile] = useState<File | null>(null);
+
+    const [selectedImageUrl, setSelectedImageUrl] = useState<string | null>(
+        null,
+    );
 
     const [originalImageUrl, setOriginalImageUrl] = useState<string | null>(
         null,
@@ -112,28 +101,28 @@ export function HomePage() {
         null,
     );
 
-    const [processMethod, setProcessMethod] =
-        useState<ProcessMethod>("thresholding");
-
     const [language, setLanguage] = useState("eng+vie");
-
-    const [useOriginal, setUseOriginal] = useState(false);
 
     const [extractedText, setExtractedText] = useState("");
 
     const [error, setError] = useState<string | null>(null);
 
-    const [isUploading, setIsUploading] = useState(false);
-    const [isProcessing, setIsProcessing] = useState(false);
     const [isExtracting, setIsExtracting] = useState(false);
 
-    const currentImageUrl = useMemo(() => {
-        if (useOriginal) {
-            return originalImageUrl;
+    const currentImageUrl =
+        processedImageUrl ?? originalImageUrl ?? selectedImageUrl;
+
+    useEffect(() => {
+        if (!file) {
+            setSelectedImageUrl(null);
+            return;
         }
 
-        return processedImageUrl ?? originalImageUrl;
-    }, [originalImageUrl, processedImageUrl, useOriginal]);
+        const objectUrl = URL.createObjectURL(file);
+        setSelectedImageUrl(objectUrl);
+
+        return () => URL.revokeObjectURL(objectUrl);
+    }, [file]);
 
     const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
@@ -146,101 +135,34 @@ export function HomePage() {
 
         if (!allowedFileTypes.includes(selectedFile.type)) {
             setError("Only PNG, JPG and JPEG images are allowed.");
+            setFile(null);
+            setOriginalImageUrl(null);
+            setProcessedImageUrl(null);
+            setExtractedText("");
             event.target.value = "";
             return;
         }
 
         if (selectedFile.size > MAX_FILE_SIZE) {
             setError("The maximum allowed file size is 16 MB.");
+            setFile(null);
+            setOriginalImageUrl(null);
+            setProcessedImageUrl(null);
+            setExtractedText("");
             event.target.value = "";
             return;
         }
 
         setFile(selectedFile);
 
-        // A new local file has not been uploaded to FastAPI yet.
         setOriginalImageUrl(null);
         setProcessedImageUrl(null);
         setExtractedText("");
-        setUseOriginal(false);
-    };
-
-    const uploadImage = async () => {
-        if (!file) {
-            setError("Please select an image first.");
-            return;
-        }
-
-        setIsUploading(true);
-        setError(null);
-
-        try {
-            const formData = new FormData();
-
-            /**
-             * Matches:
-             *
-             * file: UploadFile = File(...)
-             */
-            formData.append("file", file);
-
-            const response = await fetch(apiUrl("/upload"), {
-                method: "POST",
-                body: formData,
-            });
-
-            const data = await getResponseData<UploadResponse>(response);
-
-            setOriginalImageUrl(assetUrl(data.original));
-
-            setProcessedImageUrl(null);
-            setExtractedText("");
-            setUseOriginal(false);
-        } catch (error) {
-            setError(
-                error instanceof Error
-                    ? error.message
-                    : "Unable to upload the image.",
-            );
-        } finally {
-            setIsUploading(false);
-        }
-    };
-
-    const processImage = async () => {
-        if (!originalImageUrl) {
-            setError("Upload an image before processing it.");
-            return;
-        }
-
-        setIsProcessing(true);
-        setError(null);
-
-        try {
-            const response = await fetch(apiUrl("/process"), {
-                method: "POST",
-            });
-
-            const data = await getResponseData<ProcessResponse>(response);
-
-            setProcessedImageUrl(assetUrl(data.processed));
-
-            // After processing, display/use the processed image.
-            setUseOriginal(false);
-        } catch (error) {
-            setError(
-                error instanceof Error
-                    ? error.message
-                    : "Unable to process the image.",
-            );
-        } finally {
-            setIsProcessing(false);
-        }
     };
 
     const extractText = async () => {
-        if (!originalImageUrl) {
-            setError("Upload an image before extracting text.");
+        if (!file) {
+            setError("Please select an image first.");
             return;
         }
 
@@ -249,12 +171,7 @@ export function HomePage() {
 
         try {
             const formData = new FormData();
-
-            /**
-             * Matches FastAPI:
-             *
-             * lang: str = Form(default="eng+vie")
-             */
+            formData.append("file", file);
             formData.append("lang", language);
 
             const response = await fetch(apiUrl("/extract"), {
@@ -264,6 +181,8 @@ export function HomePage() {
 
             const data = await getResponseData<ExtractResponse>(response);
 
+            setOriginalImageUrl(assetUrl(data.original_image));
+            setProcessedImageUrl(assetUrl(data.processed_image));
             setExtractedText(data.text);
         } catch (error) {
             setError(
@@ -277,6 +196,10 @@ export function HomePage() {
     };
 
     const clear = () => {
+        if (fileInputRef.current) {
+            fileInputRef.current.value = "";
+        }
+
         setFile(null);
 
         setOriginalImageUrl(null);
@@ -284,8 +207,6 @@ export function HomePage() {
 
         setExtractedText("");
         setError(null);
-
-        setUseOriginal(false);
     };
 
     return (
@@ -327,10 +248,12 @@ export function HomePage() {
                                 </Label>
 
                                 <Input
+                                    ref={fileInputRef}
                                     id="ocr-image"
                                     type="file"
                                     accept=".png,.jpg,.jpeg,image/png,image/jpeg"
                                     onChange={handleFileChange}
+                                    disabled={isExtracting}
                                 />
                             </div>
 
@@ -349,88 +272,13 @@ export function HomePage() {
                             <div className="flex flex-wrap gap-2">
                                 <Button
                                     type="button"
-                                    onClick={uploadImage}
-                                    disabled={!file || isUploading}
-                                >
-                                    {isUploading ? "Uploading..." : "Upload"}
-                                </Button>
-
-                                <Button
-                                    type="button"
                                     variant="outline"
                                     onClick={clear}
+                                    disabled={isExtracting}
                                 >
                                     Clear
                                 </Button>
                             </div>
-                        </CardContent>
-                    </Card>
-
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Image processing</CardTitle>
-
-                            <CardDescription>
-                                Apply preprocessing before running OCR.
-                            </CardDescription>
-                        </CardHeader>
-
-                        <CardContent className="space-y-5">
-                            {/* <div className="space-y-2">
-                                <Label>
-                                    Processing method
-                                </Label>
-
-                                <Select
-                                    value={processMethod}
-                                    onValueChange={(value) =>
-                                        setProcessMethod(value as ProcessMethod)
-                                    }
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue />
-                                    </SelectTrigger>
-
-                                    <SelectContent>
-                                        <SelectItem value="thresholding">
-                                            Otsu thresholding
-                                        </SelectItem>
-
-                                        <SelectItem value="skew">
-                                            Deskew
-                                        </SelectItem>
-
-                                        <SelectItem value="gaussian">
-                                            Gaussian blur
-                                        </SelectItem>
-
-                                        <SelectItem value="median">
-                                            Median blur
-                                        </SelectItem>
-
-                                        <SelectItem value="bilateral">
-                                            Bilateral filter
-                                        </SelectItem>
-
-                                        <SelectItem value="none">
-                                            None
-                                        </SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div> */}
-
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                className="w-full"
-                                onClick={processImage}
-                                disabled={!originalImageUrl || isProcessing}
-                            >
-                                {isProcessing
-                                    ? "Processing..."
-                                    : "Process image"}
-                            </Button>
-
                         </CardContent>
                     </Card>
 
@@ -498,10 +346,10 @@ export function HomePage() {
                                 type="button"
                                 className="w-full"
                                 onClick={extractText}
-                                disabled={!originalImageUrl || isExtracting}
+                                disabled={!file || isExtracting}
                             >
                                 {isExtracting
-                                    ? "Extracting text..."
+                                    ? "Processing and extracting..."
                                     : "Extract text"}
                             </Button>
                         </CardContent>
@@ -515,11 +363,11 @@ export function HomePage() {
                             <CardTitle>Image preview</CardTitle>
 
                             <CardDescription>
-                                {useOriginal
-                                    ? "Currently using the original image."
-                                    : processedImageUrl
-                                        ? "Currently using the processed image."
-                                        : "Original uploaded image."}
+                                {processedImageUrl
+                                    ? "Processed image used for OCR."
+                                    : file
+                                        ? "Selected original image."
+                                        : "No image selected."}
                             </CardDescription>
                         </CardHeader>
 
@@ -535,7 +383,7 @@ export function HomePage() {
                             ) : (
                                 <div className="flex min-h-[400px] items-center justify-center rounded-lg border border-dashed">
                                     <p className="text-sm text-muted-foreground">
-                                        Upload an image to preview it here.
+                                        Select an image to preview it here.
                                     </p>
                                 </div>
                             )}

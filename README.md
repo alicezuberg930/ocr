@@ -1,4 +1,34 @@
-### Install pytesseract
+## Run fast API server without Docker
+
+- On Windows
+
+```bash
+python -m venv .venv
+.venv/Scripts/activate
+pip install -r requirements.txt
+cd server
+uvicorn server:server --reload --host 0.0.0.0 --port 8010
+```
+
+- On Linux
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cd server
+uvicorn server:server --reload --host 0.0.0.0 --port 8010
+```
+
+## Run webiste user interface server
+
+```bash
+cd web-ui
+bun install
+bun run dev
+```
+
+## Install pytesseract
 
 pytesseract is only a Python wrapper around the actual Tesseract OCR executable, and its documentation explicitly requires Tesseract to be installed and available as the tesseract command.
 

@@ -7,7 +7,7 @@ from env import load_server_env
 load_server_env()
 
 from routes import register_routes
-from utils import CORS_ALLOWED_ORIGINS
+from utils import CORS_ALLOWED_ORIGINS, STATIC_FOLDER
 
 server = FastAPI(title='OCR Service', version='1.0.0')
 
@@ -21,7 +21,7 @@ server.add_middleware(
 
 server.mount(
     "/static",
-    StaticFiles(directory="static"),
+    StaticFiles(directory=STATIC_FOLDER),
     name="static",
 )
 
